@@ -8,7 +8,7 @@
 	.global execve
 	.global real_waitid
 	.global _exit
-
+	
 write:
 	mov rax, 1
 	syscall

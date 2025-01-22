@@ -1,20 +1,13 @@
 #include <unistd.h>
 #include <sys/wait.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
-#define stdin 0
-#define stdout 1
+// TODO: Make syscalls manually. In assembly ideally. Make the binary smaller.
 
-int real_waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options, void*);
-
-unsigned int strlen(char* string) {
-  unsigned int i = 0;
-  while (*(string+i)!='\0')++i;
-  return i;
-}
-
-void print(char* string) {
-  write(stdout, string, strlen(string));
-}
+#define STDIN 0
+#define STDOUT 1
 
 unsigned int parse_program_name(char* command, char* name) {
   unsigned int i = 0;
@@ -26,55 +19,85 @@ unsigned int parse_program_name(char* command, char* name) {
   return i;
 }
 
-void parse_program_args(char* command, unsigned int offset, char* args[]) {
+void parse_program_args(char* command, unsigned int offset, char* args) {
   unsigned int i = 0;
-  unsigned int h = 0;
-  unsigned int args_i = 0;
-  while (*(command+offset+i) != '\0') {
-    if (*(command+offset+i) == ' ') {
-      h = 0;
-      args_i++;
-    }
-    (*(args+args_i))[h] = *(command+offset+i);
+  while (*(command+offset+1+i) != '\0') {
+    if (*(command+offset+1+i) != ' ') *(args+i) = *(command+offset+1+i);
     i++;
-    h++;
   }
+  *(args+i) = '\0';
+  if (*(args) == '\0') args = NULL;
 }
 
 //https://github.com/nir9/welcome/blob/master/lnx/very-minimal-shell/shell.c
 int main() {
   char command[255];
+  char program[255];
+  char* program_arg[3];
+
+  program_arg[0] = program;
+  //program_arg[1];
+  program_arg[2] = NULL;
+
   for (;;) {
-    write(stdout, "# ", 2);
-    int count = read(stdin, command, 255);
+    write(STDOUT, "$> ", 2);
+    int length = read(STDIN, command, 255);
     
-    command[count - 1] = '\0'; // /bin/ls\n -> /bin/ls\0
+    command[length - 1] = '\0'; // /bin/ls\n -> /bin/ls\0
    
-    char program[255];
-    unsigned int name_count = parse_program_name(command, program);
+    unsigned int name_length = parse_program_name(command, program);
 
-    char* program_args[255];
-    program_args[0] = malloc(255);
-    program_args[1] = malloc(255);
-    parse_program_args(command, name_count, program_args);
+    program_arg[1] = malloc(255);
+    parse_program_args(command, name_length, program_arg[1]);
 
-    /*
-    for (int i = 0; **())
-    */
+    for (unsigned int i = 0; *(program_arg+i) != NULL;++i) {
+      if (*(*(program_arg+i)) == '\0') {
+	*(program_arg+i) = NULL;
+	continue;
+      }
+    }
+
+    //debug arguments
+    /* char isArg = 0; */
+    /* for (unsigned int i = 0; *(program_arg+i) != NULL;++i) { */
+    /*   if (*(*(program_arg+i)) == '\0') { */
+    /* 	*(program_arg+i) = NULL; */
+    /* 	continue; */
+    /*   } */
+    /*   isArg = 0; */
+    /*   printf("%d: ", i); */
+    /*   for (unsigned int h = 0; *(*(program_arg+i)+h) != '\0'; ++h) { */
+    /* 	isArg = 1; */
+    /* 	printf("%c", *(*(program_arg+i)+h)); */
+    /*   } */
+    /*   if (isArg) */
+    /* 	printf("\n"); */
+    /* } */
+    /* printf("\n"); */
+    
     pid_t fork_result = fork();
     if (fork_result == 0) {
-      execve(program, 0, 0);
+      execve(program, program_arg, 0);
       break;
     } else {
       siginfo_t info;
-      real_waitid(P_ALL, 0, &info, WEXITED, 0);
+      waitid(P_ALL, 0, &info, WEXITED);
     }
+
+    //clean up
+    free(program_arg[1]);
+    program_arg[1] = NULL;
 
     for (unsigned i = 0; i < 255; ++i) {
       program[i] = '\0';
     }
+
+    for (unsigned i = 0; i < 255; ++i) {
+      command[i] = '\0';
+    }
+        
     
   }
 
-  _exit(0);
+  return 0;
 }
